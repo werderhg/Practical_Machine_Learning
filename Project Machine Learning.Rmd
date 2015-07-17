@@ -1,0 +1,90 @@
+---
+title: "Project Machine Learning Coursera Hopekins"
+author: "Harry Werder"
+date: "Thursday, July 09, 2015"
+output: html_document
+---
+
+Introduction
+We will build a model to predict the outcome "classe" with the levels A,B,C,D,E based on covariants from the Human Activity Recognition data.
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+
+###1. Step: Set-up of environment in R
+
+```{r}
+setwd("H:/Eigene Dateien/A-Coursera/Stat Kurs/8-Machine Learning/Project") #working directory
+rm(list=ls())
+library(ggplot2); library(caret); library(randomForest)
+#install.packages("doParallel")
+library(doParallel)
+registerDoParallel(cores=2)
+```
+
+
+### 2. Step: Loading the data
+We split the data into a training set (30%) and a test set (70%).
+This split is because my computer cannot handle a bigger training set. It also prevents overfitting.
+```{r}
+rawdata <- read.csv("pml-training.csv", na.strings = c("", "NA", "#DIV/0!") )
+set.seed(333)
+inTrain <-createDataPartition(y=rawdata$classe, p=0.3, list=FALSE)
+training <- rawdata[inTrain,]; 
+testing <- rawdata[-inTrain,]
+```
+### 3. Step: Analyse the training data and select covariant
+
+```{r}
+dim(training);dim(testing)
+#find the column with the covariants (predictors)
+aa<- !(colnames(training)=="classe")
+trainingcovariant<-training[,aa] #remove the outcome
+yaa<-levels(training$classe)
+```
+The outcome has the following levels **`r yaa`**.
+
+We have NA values in our training data. We will only use covariant as predictor if they have in 90% of the case data.
+
+```{r}
+remove_cov <- function(x) { x[ , colSums( is.na(x) ) < 0.1*nrow(x) ] }
+training_NA <-remove_cov(trainingcovariant)
+```
+
+We have now a training data set with **`r dim(training_NA) `** rows, covariants.
+
+### 4. Step: Calculate the model
+We have chosen to use random tree as the algorith because it is recognized as a good performer.
+We also replace NA by a computed value.
+
+```{r}
+training_NA$classe <- training$classe # add the  outcome
+modfit <- train( classe ~ ., method="rf",preProcess="knnImpute", prox=TRUE, data=training_NA)
+saveRDS(modfit, file="myFile.rds")
+modfit <-readRDS("myfile.rds")
+
+tt <- modfit$finalModel
+
+```
+
+The fitting has created such a result:
+```{r}
+tt
+```
+
+
+OOB estimate of error rate is low. (in sample)
+
+### 5. Testing the model with the test data
+
+We use now our testing data to see how good our model works.
+```{r}
+predt<- predict(modfit,testing)
+ttt<-confusionMatrix(testing$classe, predt)
+```
+
+The table shows that the out of sample accuracy is very very high!
+```{r}
+ttt
+```
+
+
+
